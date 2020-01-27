@@ -1,9 +1,9 @@
 --
 -- <summary>
--- 	  This script reads a PosiStageNet stream
+-- 	  This script reads a PosiStageNet tracker stream from UDP Multicast
 -- </summary>
--- <param name="name" default="PosiStageNet">Port name</param>
--- <param name="IP:Port" default=":56565">The IP of the server you want to connect to, :, the Port of the server you want to connect to. To act as a server do not enter an IP. Just enter :Port in that case.</param>
+-- <param name="name" default="AVIO-PosiStageNet">Port name</param>
+--
 -- <author>David Stone, ShadowControls</author>
 require("avio")
 require("socket")
@@ -172,14 +172,6 @@ function interrupt()
             tmpString = (tmpString .. c8(val,25+l) )
           end
           avio.setChannel("ServerName", tmpString) --SystemNameChunk
-          --avio.setChannel("udpInput", length)
-          --local systemName = ''
-          --for
-          --avio.setChannel("udpInput", "Info Packet Header")
-          --avio.setChannel("udpInput", u64(val,8)); --Timestamp
-          --avio.setChannel("udpInput", length) --Chunk Length
-          --avio.setChannel("udpInput", u16(val,2));
-        --end
 
       end
         --avio.setChannel("udpInput", u16(val,0));
@@ -235,6 +227,8 @@ function interrupt()
 	end
 end
 
+
+--Takes 4x bits and converts them in reverse order to a Float32
 function convertfloat(str)
   -- Change to b4,b3,b2,b1 to unpack an LSB float
   local b4,b3,b2,b1 = string.byte(str,1,4)
