@@ -61,10 +61,8 @@ local TRACKER_CHUNK_IDS = {
     [PSN_DATA_TRACKER_TIMESTAMP] = "PSN_DATA_TRACKER_TIMESTAMP",
 }
 
-
-
 _ip = "";
-_port = "";
+_port = "56565";
 _udp = nil;
 
 _doReceive = false;
@@ -78,15 +76,14 @@ trackerNum = 0
 function init(name, ipPort)
 	avio.addPort(name,"This port represents a PSN connection", "event");
 
-	local var = split(ipPort, ":");
-	_ip = var[1];
-	_port = var[2];
-
 	avio.addChannel(name,"ServerName","string");
 	avio.addChannel(name,"TrackerNo","string");
   avio.addChannel(name,"pos_x","string");
   avio.addChannel(name,"pos_y","string");
   avio.addChannel(name,"pos_z","string");
+  avio.addChannel(name,"rot_x","string");
+  avio.addChannel(name,"rot_y","string");
+  avio.addChannel(name,"rot_z","string");
 	avio.addChannel(name,"clientIp","string");
 	avio.addChannel(name,"status","string");
 	avio.addChannel(name,"connected",1);
@@ -101,53 +98,12 @@ function init(name, ipPort)
 	avio.setPeriodicFunction("interrupt", 1);
 end
 
-function split(p, d) -- string, separator
-   local t, ll
-   t={}
-   ll=0
-   if(#p == 1) then
-      return {p}
-   end
-   while true do
-      l = string.find(p, d, ll, true) -- find the next d in the string
-      if l ~= nil then -- if "not not" found then..
-         table.insert(t, string.sub(p,ll,l-1)) -- Save it in our array.
-         ll = l + 1 -- save just after where we found it for searching next time.
-      else
-         table.insert(t, string.sub(p,ll)) -- Save what's left in our array.
-         break -- Break at end, as it should be, according to the lua manual.
-      end
-   end
-   return t
-end
-
-function endsWith(str, ending)
-	if(str:len() < ending:len()) then
-		return false;
-	end
-	local currEnding = str:sub(-ending:len());
-	return (currEnding == ending);
-end
-
 function closed()
 	if(_isOpen) then
 		_isOpen = false;
 		_doReceive = false;
 		avio.setChannel("status", "Connection closed");
 	end
-end
-
-function dump(o)
-   if type(o) == 'table' then
-      local s = '{ '
-      for k,v in pairs(o) do
-         if type(k) ~= 'number' then k = '"'..k..'"' end
-         s = s .. '['..k..'] = ' .. dump(v) .. ','
-      end
-      return s .. '} '
-   else
-      return tostring(o)
-   end
 end
 
 function interrupt()
@@ -174,45 +130,36 @@ function interrupt()
           avio.setChannel("ServerName", tmpString) --SystemNameChunk
 
       end
-        --avio.setChannel("udpInput", u16(val,0));
+
       end
       if u16(val,0) == PSN_DATA_PACKET then
-        --avio.setChannel("udpInput", "Info Packet");
-        if u16(val,4) == PSN_DATA_PACKET_HEADER then
+        --Packet is Data Packet
+        if u16(val,4) == PSN_DATA_PACKET_HEADER then --Data is Header
           length = u16(val,6)
           if length > 32768 then --Has subchunks
-            length = length-32768
+            length = length-32768 --strip the "has subchunks" bit
           end
-            if u16(val,length+8) == PSN_DATA_TRACKER_LIST then
+            if u16(val,length+8) == PSN_DATA_TRACKER_LIST then --If Chunk is tracker list
 
-              if u16(val,length+8+4) == 0x0000 then
-                if u16(val,length+8+4+4) == PSN_DATA_TRACKER_POS then
+              if u16(val,length+8+4) == 0x0000 then --if selected tracker
+                if u16(val,length+16) == PSN_DATA_TRACKER_POS then -- if position chunk, grab vlaues
 
-                  avio.setChannel("pos_x", convertfloat(string.sub(val,length+16+((trackerNum+1)*4)+1,length+16+((trackerNum+4)*4)+1 +4)))
-                  avio.setChannel("pos_y", convertfloat(string.sub(val,length+16+((trackerNum+1)*4)+5,length+16+((trackerNum+4)*4)+5 +4)))
-                  avio.setChannel("pos_z", convertfloat(string.sub(val,length+16+((trackerNum+1)*4)+9,length+16+((trackerNum+4)*4)+9 +4)))
+                  avio.setChannel("pos_x", convertfloat(string.sub(val,length+16+4+1,length+16+4+1 +4)))
+                  avio.setChannel("pos_y", convertfloat(string.sub(val,length+16+4+5,length+16+4+5 +4)))
+                  avio.setChannel("pos_z", convertfloat(string.sub(val,length+16+4+9,length+16+4+9 +4)))
               end
+                if u16(val,length+16+32) == PSN_DATA_TRACKER_ORI then -- if orientation chunk, grab values
+                  avio.setChannel("rot_x", convertfloat(string.sub(val,length+32+4+1+16,length+32+4+1 +20)))
+                  avio.setChannel("rot_y", convertfloat(string.sub(val,length+32+4+5+16,length+32+4+5 +20)))
+                  avio.setChannel("rot_z", convertfloat(string.sub(val,length+32+4+9+16,length+32+4+9 +20)))
+              end
+
             end
-            --avio.setChannel("udpInput", convertfloat(string.sub(val,53,53 +4)))
+
           end
 
-
-          --avio.setChannel("udpInput", length)
-          --local systemName = ''
-          --for
-          --avio.setChannel("udpInput", "Info Packet Header")
-          --avio.setChannel("udpInput", u64(val,8)); --Timestamp
-          --avio.setChannel("udpInput", length) --Chunk Length
-          --avio.setChannel("udpInput", u16(val,2));
-        --end
-
       end
-        --avio.setChannel("udpInput", u16(val,0));
       end
-
-
-
-			--p_psn.dissector (val, root);
 
 			if(_isServer) then
 				_otherIp = otherIp;
@@ -228,9 +175,9 @@ function interrupt()
 end
 
 
---Takes 4x bits and converts them in reverse order to a Float32
+--Takes 4x bits and converts them in endian order to a IEEE-754 Float32
 function convertfloat(str)
-  -- Change to b4,b3,b2,b1 to unpack an LSB float
+  -- Change to b1,b2,b3,b4 to unpack an MSB float
   local b4,b3,b2,b1 = string.byte(str,1,4)
 
   local exponent = (b1 % 128) * 2 + math.floor(b2 / 128)
@@ -305,13 +252,4 @@ function u32(b,i)
   b3, b4 = string.byte(b, i+3), string.byte(b, i+4)
   --        2^24          2^16       2^8     2^0
   return b4*16777216 + b3*65536 + b2*256 + b1
-end
-function u64(b,i)
-  local b1,b2,b3,b4,b5,b6,b7,b8
-  b1, b2 = string.byte(b, i), string.byte(b, i+1)
-  b3, b4 = string.byte(b, i+2), string.byte(b, i+3)
-  b5, b6 = string.byte(b, i+4), string.byte(b, i+5)
-  b7, b8 = string.byte(b, i+6), string.byte(b, i+7)
-  --        2^24          2^16       2^8     2^0
-  return b8*281474976710656*256 + b7*281474976710656 + b6*1099511627776 + b5*4294967296 + b4*16777216 + b3*65536 + b2*256 + b1
 end
